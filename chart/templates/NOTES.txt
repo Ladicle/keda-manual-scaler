@@ -1,0 +1,5 @@
+{{ .Chart.Name }} {{ .Chart.AppVersion }} has been deployed successfully!
+
+You can call the activate API by running:
+kubectl port-forward services/{{ include "chart.fullname" . }} {{ .Values.httpPort }}:{{ .Values.httpPort }} &
+curl 'localhost:{{ .Values.httpPort }}?active=true'
