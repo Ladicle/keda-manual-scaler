@@ -2,12 +2,20 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-# The HTTP port number for the public service.
+# The GRPC port number for the KEDA external push scaler.
 # +docs:type=number
-httpPort: 8080
-# The GRPC port number for the public service.
+grpcScalerPort: 8081
+# The HTTP port number for the simple API server to update the metrics.
 # +docs:type=number
-grpcPort: 8081
+httpAPIPort: 8080
+
+default:
+  metricName: manual
+  active: false
+  targetSize: 1
+  metricValue: 0
+
+metrics: {}
 
 # The log level of the inference-manager-engine container.
 # +docs:type=number

@@ -6,5 +6,11 @@ metadata:
     {{- include "chart.labels" . | nindent 4 }}
 data:
   config.yaml: |
-    grpcPort: {{ .Values.grpcPort }}
-    httpPort: {{ .Values.httpPort }}
+    grpcScalerPort: {{ .Values.grpcScalerPort }}
+    httpAPIPort: {{ .Values.httpAPIPort }}
+    default:
+      {{ .Values.default . | nindent 2 }}
+    {{- with .Values.metrics }}
+    metrics:
+      {{ . | nindent 2 }}
+    {{- end }}

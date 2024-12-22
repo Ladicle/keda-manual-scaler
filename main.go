@@ -52,58 +52,98 @@ func run(ctx context.Context, c *config) error {
 	log := logr.FromContextOrDiscard(ctx)
 	log.Info("Starting manual scaler", "config", c)
 
-	s := &scaler{eventCh: make(chan bool), logger: log.WithName("scaler")}
-
+	evCh := make(chan event)
 	eg, ctx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
-		return runGrpcServer(ctx, c.GrpcPort, s)
+		return startKEDAExternalPushScaler(ctx, c, evCh)
 	})
 	eg.Go(func() error {
-		return httpServer(ctx, c.HttpPort, s)
+		return startAPIServer(ctx, c.HttpAPIPort, evCh)
 	})
-
 	return eg.Wait()
 }
 
-func runGrpcServer(ctx context.Context, port int, s *scaler) error {
+// startKEDAExternalPushScaler starts a gRPC server that implements the KEDA ExternalScaler interface.
+func startKEDAExternalPushScaler(ctx context.Context, c *config, evCh <-chan event) error {
 	log := logr.FromContextOrDiscard(ctx)
 
+	scaler := NewScaler(ctx, c)
 	grpcServer := grpc.NewServer()
-	externalscaler.RegisterExternalScalerServer(grpcServer, s)
+	externalscaler.RegisterExternalScalerServer(grpcServer, scaler)
 	reflection.Register(grpcServer)
-
 	healthCheck := health.NewServer()
 	healthCheck.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
 	grpc_health_v1.RegisterHealthServer(grpcServer, healthCheck)
 
 	go func() {
-		<-ctx.Done()
-		grpcServer.GracefulStop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case ev := <-evCh:
+				scaler.updateStatus(ev)
+			}
+		}
 	}()
 
-	l, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	l, err := net.Listen("tcp", fmt.Sprintf(":%d", c.GrpcScalerPort))
 	if err != nil {
 		return err
 	}
-	log.Info("Starting gRPC server...", "port", port)
-	return grpcServer.Serve(l)
+
+	errCh := make(chan error)
+	go func() {
+		log.Info("Starting KEDA external push scaler...", "port", c.GrpcScalerPort)
+		errCh <- grpcServer.Serve(l)
+	}()
+
+	select {
+	case err := <-errCh:
+		return err
+	case <-ctx.Done():
+		grpcServer.GracefulStop()
+		return nil
+	}
 }
 
-func httpServer(ctx context.Context, port int, s *scaler) error {
+// startAPIServer starts a simple HTTP API server that accepts requests to change the event of the scaler.
+func startAPIServer(ctx context.Context, port int, evCh chan<- event) error {
 	log := logr.FromContextOrDiscard(ctx)
 
+	srv := &http.Server{Addr: fmt.Sprintf(":%d", port)}
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		activeStr := r.URL.Query().Get("active")
+		query := r.URL.Query()
+		activeStr := query.Get("active")
 		active, err := strconv.ParseBool(activeStr)
 		if err != nil {
 			log.Error(err, "Invalid active parameter")
 			http.Error(w, "Invalid active parameter", http.StatusBadRequest)
 			return
 		}
-		s.eventCh <- active
+		valueStr := query.Get("value")
+		value, err := strconv.ParseInt(valueStr, 10, 64)
+		if err != nil {
+			log.Error(err, "Invalid value parameter")
+			http.Error(w, "Invalid value parameter", http.StatusBadRequest)
+		}
+		evCh <- event{
+			objectName:  query.Get("name"),
+			active:      active,
+			metricValue: value,
+		}
 		w.WriteHeader(http.StatusOK)
 	})
 
-	log.Info("Starting HTTP server...", "port", port)
-	return http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
+	errCh := make(chan error)
+	go func() {
+		log.Info("Starting HTTP API server...", "port", port)
+		errCh <- http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
+	}()
+
+	select {
+	case err := <-errCh:
+		return err
+	case <-ctx.Done():
+		return srv.Shutdown(context.Background())
+	}
 }

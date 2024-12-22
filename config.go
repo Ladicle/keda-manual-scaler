@@ -8,8 +8,18 @@ import (
 )
 
 type config struct {
-	GrpcPort int `yaml:"grpcPort"`
-	HttpPort int `yaml:"httpPort"`
+	GrpcScalerPort int `yaml:"grpcScalerPort"`
+	HttpAPIPort    int `yaml:"httpAPIPort"`
+
+	DefaultConfig metricConfig     `yaml:"default"`
+	ObjectMetrics map[string]int64 `yaml:"metrics"`
+}
+
+type metricConfig struct {
+	metricName  string `yaml:"metricName"`
+	active      bool   `yaml:"active"`
+	targetSize  int64  `yaml:"targetSize"`
+	metricValue int64  `yaml:"metricValue"`
 }
 
 func parseConfig(path string) (*config, error) {
