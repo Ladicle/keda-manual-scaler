@@ -37,17 +37,16 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
-          - run
           - --config
           - /etc/config/config.yaml
           - -v
           - "{{ .Values.logLevel }}"
           ports:
             - name: grpc
-              containerPort: {{ .Values.grpcPort }}
+              containerPort: {{ .Values.grpcScalerPort }}
               protocol: TCP
             - name: http
-              containerPort: {{ .Values.httpPort }}
+              containerPort: {{ .Values.httpAPIPort }}
               protocol: TCP
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
@@ -62,7 +61,7 @@ spec:
       - name: config
         configMap:
           name: {{ include "chart.fullname" . }}
-      {{- with .Values.volumes }}y
+      {{- with .Values.volumes }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- with .Values.nodeSelector }}

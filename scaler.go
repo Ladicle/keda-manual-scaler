@@ -11,10 +11,10 @@ import (
 
 func NewScaler(ctx context.Context, c *config) *scaler {
 	return &scaler{
-		metricName:  c.DefaultConfig.metricName,
-		active:      c.DefaultConfig.active,
-		targetSize:  c.DefaultConfig.targetSize,
-		metricValue: c.DefaultConfig.metricValue,
+		metricName:  c.DefaultConfig.MetricName,
+		active:      c.DefaultConfig.Active,
+		targetSize:  c.DefaultConfig.TargetSize,
+		metricValue: c.DefaultConfig.MetricValue,
 		logger:      logr.FromContextOrDiscard(ctx).WithName("scaler"),
 	}
 }

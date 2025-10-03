@@ -9,8 +9,8 @@ data:
     grpcScalerPort: {{ .Values.grpcScalerPort }}
     httpAPIPort: {{ .Values.httpAPIPort }}
     default:
-      {{ .Values.default . | nindent 2 }}
+      {{- toYaml .Values.default | nindent 6 }}
     {{- with .Values.metrics }}
     metrics:
-      {{ . | nindent 2 }}
+      {{- toYaml . | nindent 6 }}
     {{- end }}
